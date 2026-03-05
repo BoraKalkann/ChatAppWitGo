@@ -3,8 +3,11 @@ package main
 import (
 	"log"
 	"net/http"
-	"github.com/gorilla/websocket"
+
+	"Chatapp/config"
 	"Chatapp/internal/chat"
+	"github.com/gorilla/websocket"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var upgrader = websocket.Upgrader{
@@ -15,7 +18,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func serveWs(hub *chat.Hub, w http.ResponseWriter, r *http.Request) {
+func serveWs(hub *chat.Hub, collection *mongo.Collection, w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
 	if username == "" {
 		log.Println("Username is required")
@@ -30,15 +33,24 @@ func serveWs(hub *chat.Hub, w http.ResponseWriter, r *http.Request) {
 	client := chat.NewClient(hub, conn, username)
 	hub.Register(client)
 
+	// Mevcut geçmiş mesajları, yeni bağlanan kullanıcıya gönder
+	history := config.FetchHistory(collection)
+	for _, msg := range history {
+		client.Send(msg)
+	}
+
 	go client.WritePump()
 	go client.ReadPump()
 }	
 
 func main() {
-	hub := chat.NewHub()
+	collection := config.InitDB()
+	hub := chat.NewHub(collection)
+
 	go hub.Run()
+
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(hub, w, r)
+		serveWs(hub, collection, w, r)
 	})
 	log.Println("Server is running on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

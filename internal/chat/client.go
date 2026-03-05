@@ -7,8 +7,9 @@ import (
 )
 
 type ClientMessage struct {
-	Sender string  `json:"sender"`
-	Message string  `json:"message"`
+	Sender string  `json:"sender" bson:"sender"`
+	Message string  `json:"message" bson:"message" `
+	CreatedAt time.Time  `json:"created_at" bson:"created_at"`
 }
 
 type Client struct {
@@ -16,6 +17,12 @@ type Client struct {
 	conn *websocket.Conn
 	send chan []byte
 	username string
+}
+
+// Send, dış paketlerden istemciye mesaj gönderebilmek için
+// güvenli bir sarmalayıcı sağlar.
+func (c *Client) Send(msg []byte) {
+	c.send <- msg
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, username string) *Client {
@@ -63,9 +70,6 @@ func (c *Client) WritePump() {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
-				// Eğer ok değeri false ise, bu kanal Hub tarafından kapatılmış demektir 
-				// (Hub bu istemciyi sorunlu bulup atmış olabilir).
-				// Tarayıcıya "Bağlantıyı Kapatıyorum" (CloseMessage) sinyali gönder ve bitir.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}

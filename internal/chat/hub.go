@@ -1,20 +1,29 @@
 package chat
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
+)
 
 type Hub struct {
 	clients    map[*Client]bool
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
+	collection *mongo.Collection
 }
 
-func NewHub() *Hub {
+func NewHub(col *mongo.Collection) *Hub {
 	return &Hub{
 		clients:    make(map[*Client]bool),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan []byte),
+		collection : col,
 	}
 }
 
@@ -74,7 +83,25 @@ func (h *Hub) Run() {
 					delete(h.clients, client)
 				}
 			}
-
+		
+			
+			go func(payload []byte) {
+				var msgObj Message
+				
+			
+				if err := json.Unmarshal(payload, &msgObj); err == nil {
+					
+					msgObj.CreatedAt = time.Now()
+					
+				
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_, err := h.collection.InsertOne(ctx, msgObj)
+					if err != nil {
+						log.Println("Veritabanına yazma hatası:", err)
+					}
+				}
+			}(message)
 		}
 	}
 }
