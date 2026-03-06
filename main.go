@@ -6,7 +6,10 @@ import (
 
 	"Chatapp/config"
 	"Chatapp/internal/chat"
+	"Chatapp/internal/chat/auth"
+	"Chatapp/internal/chat/upload"
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -19,12 +22,18 @@ var upgrader = websocket.Upgrader{
 }
 
 func serveWs(hub *chat.Hub, collection *mongo.Collection, w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-	if username == "" {
-		log.Println("Username is required")
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		log.Println("Token is required")
 		return
 	}
-	// 1. EL SIKIŞMA (Handshake): TCP soketinin kontrolünü HTTP sunucusundan devral (Hijack).
+
+	username, err := auth.ValidateToken(tokenString)
+	if err != nil {
+		log.Println("Geçersiz token:", err)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade hatası:", err)
@@ -33,7 +42,6 @@ func serveWs(hub *chat.Hub, collection *mongo.Collection, w http.ResponseWriter,
 	client := chat.NewClient(hub, conn, username)
 	hub.Register(client)
 
-	// Mevcut geçmiş mesajları, yeni bağlanan kullanıcıya gönder
 	history := config.FetchHistory(collection)
 	for _, msg := range history {
 		client.Send(msg)
@@ -44,14 +52,27 @@ func serveWs(hub *chat.Hub, collection *mongo.Collection, w http.ResponseWriter,
 }	
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("Uyarı: .env dosyası bulunamadı, varsayılan değerler kullanılacak.")
+	}
+
 	collection := config.InitDB()
 	hub := chat.NewHub(collection)
 
 	go hub.Run()
 
+	authCollection := config.Client.Database("test").Collection("users") 
+	http.HandleFunc("/api/auth", auth.AuthHandler(authCollection))
+
+	http.HandleFunc("/api/upload", upload.UploadHandler)
+
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, collection, w, r)
 	})
+
+	fs := http.FileServer(http.Dir("./public"))
+	http.Handle("/", fs)
+
 	log.Println("Server is running on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

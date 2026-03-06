@@ -7,9 +7,10 @@ import (
 )
 
 type ClientMessage struct {
-	Sender string  `json:"sender" bson:"sender"`
-	Message string  `json:"message" bson:"message" `
-	CreatedAt time.Time  `json:"created_at" bson:"created_at"`
+	Type      string    `json:"type" bson:"type"`
+	Sender    string    `json:"sender" bson:"sender"`
+	Message   string    `json:"message" bson:"message" `
+	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 }
 
 type Client struct {
@@ -19,8 +20,6 @@ type Client struct {
 	username string
 }
 
-// Send, dış paketlerden istemciye mesaj gönderebilmek için
-// güvenli bir sarmalayıcı sağlar.
 func (c *Client) Send(msg []byte) {
 	c.send <- msg
 }
@@ -47,9 +46,18 @@ func (c *Client) ReadPump() {
 		if err != nil {
 			break
 		}
-		msgObj := ClientMessage{
-			Sender:  c.username,
-			Message: string(rawMessage),
+		
+		var msgObj ClientMessage
+		err = json.Unmarshal(rawMessage, &msgObj)
+		
+		if err != nil || msgObj.Type == "" {
+			msgObj = ClientMessage{
+				Type:    "text",
+				Sender:  c.username,
+				Message: string(rawMessage),
+			}
+		} else {
+			msgObj.Sender = c.username
 		}
 
 		jsonBytes, err := json.Marshal(msgObj)

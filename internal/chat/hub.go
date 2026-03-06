@@ -37,7 +37,6 @@ func (h *Hub) Run() {
 		case client := <-h.register:
 			h.clients[client] = true
 
-			// Yeni kullanıcı bağlandığında herkese sistem mesajı gönder
 			joinMsg := ClientMessage{
 				Sender:  "SİSTEM",
 				Message: "Sunucuya '" + client.username + "' olarak bağlanıldı.",
@@ -58,7 +57,6 @@ func (h *Hub) Run() {
 				delete(h.clients, client)
 				close(client.send)
 
-				// Kullanıcı ayrıldığında da sistem mesajı gönder (isteğe bağlı)
 				leaveMsg := ClientMessage{
 					Sender:  "SİSTEM",
 					Message: " '" + client.username + "' sohbetten ayrıldı.",
@@ -84,16 +82,11 @@ func (h *Hub) Run() {
 				}
 			}
 		
-			
 			go func(payload []byte) {
 				var msgObj Message
-				
-			
 				if err := json.Unmarshal(payload, &msgObj); err == nil {
-					
 					msgObj.CreatedAt = time.Now()
 					
-				
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					_, err := h.collection.InsertOne(ctx, msgObj)

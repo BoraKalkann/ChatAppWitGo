@@ -1,0 +1,33 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Specific to project
+test_app*
+
+# Environment Variables (CRITICAL)
+.env
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendor directories
+vendor/
+
+# Uploads from users
+public/uploads/*
+!public/uploads/.gitkeep
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

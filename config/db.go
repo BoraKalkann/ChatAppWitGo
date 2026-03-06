@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"Chatapp/internal/chat"
@@ -12,17 +13,25 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+var Client *mongo.Client
 
 func InitDB() *mongo.Collection {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017"
+	}
+
+	clientOptions := options.Client().ApplyURI(mongoURI)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatal("MongoDB bağlantı hatası:", err)
 	}
+
+	Client = client
 
 	
 	err = client.Ping(ctx, nil)
@@ -43,8 +52,7 @@ func FetchHistory(collection *mongo.Collection) [][]byte {
 
 	
 	findOptions := options.Find().SetSort(bson.M{"created_at": -1}).SetLimit(50)
-	
-	
+		
 	cursor, err := collection.Find(ctx, bson.M{}, findOptions)
 	if err != nil {
 		log.Println("Geçmiş çekilirken hata:", err)
@@ -58,7 +66,6 @@ func FetchHistory(collection *mongo.Collection) [][]byte {
 		return nil
 	}
 
-	
 	var history [][]byte
 	for i := len(messages) - 1; i >= 0; i-- {
 		msgBytes, _ := json.Marshal(messages[i])
